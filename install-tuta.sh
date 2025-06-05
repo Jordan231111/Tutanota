@@ -69,7 +69,7 @@ EOF
 
 # Launch Tuta Mail
 echo "Launching Tuta Mail..."
-~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage &
+~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage --disable-gpu --disable-software-rasterizer --disable-gpu-compositing &
 
 echo "---------------------------------------------------------------------"
 echo "Tuta Mail installation script finished."
