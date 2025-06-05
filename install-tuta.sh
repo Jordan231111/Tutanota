@@ -56,7 +56,7 @@ chmod +x ~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage
 
 # Create desktop shortcut
 echo "Creating desktop shortcut..."
-cat > ~/.local/share/applications/tutanota.desktop << EOF
+cat > ~/.local/share/applications/tutanota-desktop.desktop << EOF
 [Desktop Entry]
 Name=Tuta Mail
 Comment=Secure email client
@@ -67,7 +67,11 @@ Type=Application
 Categories=Network;Email;
 EOF
 
-# Terminate any existing Tuta Mail processes
+# Install gnome-keyring for safeStorage API
+    echo "Attempting to install gnome-keyring for secure storage..."
+    sudo apt update && sudo apt install -y gnome-keyring || echo "gnome-keyring installation failed or was skipped, secure storage might not work."
+
+    # Terminate any existing Tuta Mail processes
 pkill -f tutanota-desktop-linux.AppImage || true  # || true ensures the script doesn't exit if no process is found
 
 # Launch Tuta Mail
