@@ -67,6 +67,9 @@ Type=Application
 Categories=Network;Email;
 EOF
 
+# Terminate any existing Tuta Mail processes
+pkill -f tutanota-desktop-linux.AppImage || true  # || true ensures the script doesn't exit if no process is found
+
 # Launch Tuta Mail
 echo "Launching Tuta Mail..."
 ~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage --disable-gpu --disable-software-rasterizer --disable-gpu-compositing &
