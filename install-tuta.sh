@@ -61,7 +61,7 @@ cat > ~/.local/share/applications/tutanota-desktop.desktop << EOF
 Name=Tuta Mail
 Comment=Secure email client
 Exec=~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage
-Icon=mail-client
+Icon=tutanota-desktop
 Terminal=false
 Type=Application
 Categories=Network;Email;
