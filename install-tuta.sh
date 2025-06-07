@@ -1,86 +1,107 @@
 #!/bin/bash
+#
+# Script to download, install, and launch the Tuta Mail AppImage on Debian/Ubuntu-based systems.
+# It ensures all dependencies are met and sets up a desktop shortcut.
 
-# Script to download and open Tuta Mail on Ubuntu
+# --- Configuration ---
+set -e # Exit immediately if a command exits with a non-zero status.
 
-# --- FUSE Check & Auto-Install ---
+# Paths and filenames
+INSTALL_DIR=~/Downloads/tuta-mail
+APP_IMAGE_NAME="tutanota-desktop-linux.AppImage"
+APP_IMAGE_PATH="${INSTALL_DIR}/${APP_IMAGE_NAME}"
+DESKTOP_ENTRY_NAME="tutanota-desktop.desktop"
+DESKTOP_ENTRY_PATH="${HOME}/.local/share/applications/${DESKTOP_ENTRY_NAME}"
+DOWNLOAD_URL="https://app.tuta.com/desktop/tutanota-desktop-linux.AppImage"
+REQUIRED_PACKAGES=("gnome-keyring")
+
+# --- Functions ---
+
+# Function to check for FUSE and add it to dependencies if missing.
 # AppImages require FUSE (Filesystem in Userspace) to run.
 # We check for libfuse2, which provides libfuse.so.2 on Debian/Ubuntu systems.
-echo "Checking for FUSE (libfuse2)..."
-if ! ( [[ "$(dpkg-query -W -f='${Status}' libfuse2 2>/dev/null)" == "install ok installed" ]] || \
-       [[ "$(dpkg-query -W -f='${Status}' libfuse2t64 2>/dev/null)" == "install ok installed" ]] ); then
-    echo "---------------------------------------------------------------------"
-    echo "INFO: FUSE (libfuse2) is not installed, but it's required by AppImages."
-    echo "The script will now attempt to install it using 'sudo apt update && sudo apt install -y libfuse2'."
-    echo "You may be prompted for your password to authorize the installation."
-    echo "---------------------------------------------------------------------"
-    
-    # Attempt to install libfuse2
-    if sudo apt update && sudo apt install -y libfuse2; then
-        echo "libfuse2 installation attempted successfully."
+check_and_add_fuse() {
+    echo "Checking for FUSE (libfuse2)..."
+    if dpkg-query -W -f='${Status}' libfuse2 2>/dev/null | grep -q "install ok installed"; then
+        echo "FUSE (libfuse2) is already installed."
     else
-        echo "---------------------------------------------------------------------"
-        echo "ERROR: libfuse2 installation failed or was cancelled."
-        echo "Please try installing it manually: sudo apt update && sudo apt install -y libfuse2"
-        echo "Then re-run this script."
-        echo "---------------------------------------------------------------------"
-        exit 1
+        echo "INFO: FUSE (libfuse2) not found. It will be added to the list of dependencies to install."
+        REQUIRED_PACKAGES+=("libfuse2")
     fi
+}
 
-    # Re-check if libfuse2 is now installed
-    echo "Re-checking for FUSE (libfuse2) after installation attempt..."
-    if ! ( [[ "$(dpkg-query -W -f='${Status}' libfuse2 2>/dev/null)" == "install ok installed" ]] || \
-           [[ "$(dpkg-query -W -f='${Status}' libfuse2t64 2>/dev/null)" == "install ok installed" ]] ); then
+# Function to install required packages if they are not already present.
+install_dependencies() {
+    local packages_to_install=()
+    for pkg in "$@"; do
+        # Check if the package is already installed.
+        if ! dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q "install ok installed"; then
+            packages_to_install+=("${pkg}")
+        fi
+    done
+
+    if [ ${#packages_to_install[@]} -gt 0 ]; then
         echo "---------------------------------------------------------------------"
-        echo "ERROR: libfuse2 is still not detected after installation attempt."
-        echo "Please ensure it was installed correctly and then re-run this script."
+        echo "The following required packages are missing: ${packages_to_install[*]}"
+        echo "The script will now attempt to install them using 'sudo apt-get'."
+        echo "You may be prompted for your password."
         echo "---------------------------------------------------------------------"
-        exit 1
+        
+        sudo apt-get update
+        sudo apt-get install -y "${packages_to_install[@]}"
+        
+        echo "Dependency installation process finished."
     else
-        echo "FUSE (libfuse2) is now installed."
+        echo "All required dependencies are already satisfied."
     fi
-else
-    echo "FUSE (libfuse2) is already installed."
-fi
-# --- End FUSE Check & Auto-Install ---
+}
 
-# Create a directory to store the download if it doesn't exist
-mkdir -p ~/Downloads/tuta-mail
+# Function to handle the download and setup of the Tuta Mail AppImage.
+download_and_setup_app() {
+    echo "Ensuring installation directory exists at ${INSTALL_DIR}..."
+    mkdir -p "${INSTALL_DIR}"
 
-# Download the latest Tuta Mail AppImage
-echo "Downloading Tuta Mail..."
-# Use -N for timestamping: only download if server file is newer or local is missing.
-wget -N -O ~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage https://app.tuta.com/desktop/tutanota-desktop-linux.AppImage
+    echo "Downloading the latest Tuta Mail AppImage..."
+    # Use -N for timestamping: only download if server file is newer or local is missing.
+    wget -N -O "${APP_IMAGE_PATH}" "${DOWNLOAD_URL}"
 
-# Make the AppImage executable
-chmod +x ~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage
+    echo "Making the AppImage executable..."
+    chmod +x "${APP_IMAGE_PATH}"
 
-# Create desktop shortcut
-echo "Creating desktop shortcut..."
-cat > ~/.local/share/applications/tutanota-desktop.desktop << EOF
+    echo "Creating desktop shortcut at ${DESKTOP_ENTRY_PATH}..."
+    # Create a desktop entry for application launchers.
+    cat > "${DESKTOP_ENTRY_PATH}" << EOF
 [Desktop Entry]
 Name=Tuta Mail
 Comment=Secure email client
-Exec=~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage
+Exec=${APP_IMAGE_PATH} --disable-gpu --disable-software-rasterizer --disable-gpu-compositing
 Icon=tutanota-desktop
 Terminal=false
 Type=Application
 Categories=Network;Email;
 EOF
+}
 
-# Install gnome-keyring for safeStorage API
-    echo "Attempting to install gnome-keyring for secure storage..."
-    sudo apt update && sudo apt install -y gnome-keyring || echo "gnome-keyring installation failed or was skipped, secure storage might not work."
+# --- Main Execution ---
+main() {
+    check_and_add_fuse
+    install_dependencies "${REQUIRED_PACKAGES[@]}"
+    download_and_setup_app
 
-    # Terminate any existing Tuta Mail processes
-pkill -f tutanota-desktop-linux.AppImage || true  # || true ensures the script doesn't exit if no process is found
+    echo "Terminating any existing Tuta Mail processes to ensure a clean start..."
+    # || true prevents the script from exiting if no process is found.
+    pkill -f "${APP_IMAGE_NAME}" || true
 
-# Launch Tuta Mail
-echo "Launching Tuta Mail..."
-~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage --disable-gpu --disable-software-rasterizer --disable-gpu-compositing &
+    echo "Launching Tuta Mail..."
+    # Launch in the background to not block the terminal.
+    nohup "${APP_IMAGE_PATH}" --disable-gpu --disable-software-rasterizer --disable-gpu-compositing >/dev/null 2>&1 &
 
-echo "---------------------------------------------------------------------"
-echo "Tuta Mail installation script finished."
-echo "If Tuta Mail did not launch, or you saw FUSE errors earlier,"
-echo "ensure libfuse2 is installed and try launching manually from:"
-echo "  ~/Downloads/tuta-mail/tutanota-desktop-linux.AppImage"
-echo "---------------------------------------------------------------------"
+    echo "---------------------------------------------------------------------"
+    echo "Tuta Mail installation and launch script finished."
+    echo "You can find the application launcher in your applications menu."
+    echo "The AppImage is located at: ${APP_IMAGE_PATH}"
+    echo "---------------------------------------------------------------------"
+}
+
+# Run the main function
+main
